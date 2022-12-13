@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from time import sleep
 from datetime import datetime
 import json
+import os
 
 URL = "https://dados.gov.br/dados/conjuntos-dados/" \
     "cadastro-nacional-da-pessoa-juridica-cnpj"
@@ -45,6 +46,7 @@ def create_txt_file(value, filename):
 
         else:
             json.dump(value, file)
+            os.remove("results.txt")
 
 
 def cleanup_txt(filename):
@@ -72,8 +74,8 @@ def main():
     last_update_date = min(cleanup_txt("results.txt"))
     validation_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
 
-    info = {"Last Update Date": last_update_date,
-            "Last Execution": validation_date}
+    info = {"updatedAt": last_update_date,
+            "checkedAt": validation_date}
     create_txt_file(info, "last_update_date.json")
 
     sleep(1)
