@@ -1,10 +1,11 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from time import sleep
 from datetime import datetime
 import json
-import os
+from pathlib import Path
 
+ROOT_FOLDER = Path(__file__).parent
+CHROME_DRIVER_PATH = ROOT_FOLDER / "chromedriver"
 URL = "https://dados.gov.br/dados/conjuntos-dados/" \
     "cadastro-nacional-da-pessoa-juridica-cnpj"
 
@@ -26,60 +27,106 @@ class ChromeDriver:
     def close(self):
         self.driver.quit()
 
-    def show_resources(self):
-        btn_resources = self.driver.find_element(
-            By.CSS_SELECTOR, ".botao-collapse-Recursos")
-        btn_resources.click()
-
-    def find_elements_last_update_date(self):
+    def find_elements(self):
         update_date_list = self.driver.find_elements(
             By.TAG_NAME, "span")
 
         return update_date_list
 
+    def click_elements(self):
+        btn_resources = self.driver.find_element(
+            By.CSS_SELECTOR, ".botao-collapse-Recursos")
 
-def create_txt_file(value, filename):
-    with open(filename, "w") as file:
-        if type(value) == list:
-            for item in value:
+        btn_resources.click()
+
+
+def write_file(arq, name):
+    with open(name, "w") as file:
+        if type(arq) == dict:
+            json.dump(arq, file)
+            remove_file("raw_data.txt")
+
+        elif type(arq) == list:
+            for item in arq:
                 file.write(item.text + "\n")
 
-        else:
-            json.dump(value, file)
-            os.remove("results.txt")
+        else:  # verificar se essa condição funciona corretamente
+            file.write(arq.text)
 
 
-def cleanup_txt(filename):
+def load_file(filename, type):
+    with open(ROOT_FOLDER / filename, "r") as file:
+        if type == "json":
+            json_file = json.load(file)
+
+    return json_file
+
+
+def remove_file(filename):
+    exists = check_if_file_exists(filename)
+    if exists:
+        Path.unlink(ROOT_FOLDER / filename)
+
+
+def check_if_file_exists(filename):
+    exists = Path(ROOT_FOLDER / filename).is_file()
+
+    return exists
+
+
+def clean_file(filename):
     with open(filename, "r") as file:
         lines = file.readlines()
 
         list_dates = []
         for line in lines:
             if "Última atualização:" in line:
-                last_update_date = line[-11:]
-                list_dates.append(last_update_date.replace("\n", ""))
+                list_dates.append(line[-11:].replace("\n", ""))
 
     list_dates = list(dict.fromkeys(list_dates))
     return list_dates
 
 
-def main():
+def scraping(check_date, last_check=None, last_update=None):
     chrome = ChromeDriver()
     chrome.go_to_url(URL)
-    sleep(3)
-    chrome.show_resources()
-    sleep(3)
+    chrome.click_elements()
 
-    create_txt_file(chrome.find_elements_last_update_date(), "results.txt")
-    last_update_date = min(cleanup_txt("results.txt"))
-    validation_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
+    write_file(chrome.find_elements(), "raw_data.txt")
+    scraped_date = min(clean_file("raw_data.txt"))
 
-    info = {"updatedAt": last_update_date,
-            "checkedAt": validation_date}
-    create_txt_file(info, "last_update_date.json")
+    if last_check is None and last_update is None:
+        info = {"updatedAt": scraped_date,
+                "checkedAt": check_date}
+        write_file(info, "result.json")
 
-    sleep(1)
+    else:
+        if last_check >= check_date and last_update >= scraped_date:
+            exit()
+
+        else:
+            json_file = load_file("result.json", "json")
+            json_file["updatedAt"] = scraped_date
+            json_file["checkedAt"] = check_date
+            write_file(json_file, "result.json")
+
     chrome.close()
+
+
+def main():
+    today = datetime.strftime(datetime.now(), "%d/%m/%Y")
+    file_exists = check_if_file_exists("result.json")
+    if file_exists:
+        dict_dates = load_file("result.json", "json")
+        last_updated_at = dict_dates["updatedAt"]
+        last_checked_at = dict_dates["checkedAt"]
+
+        scraping(today,
+                 last_check=last_checked_at,
+                 last_update=last_updated_at)
+
+    else:
+        scraping(today)
 
 
 if __name__ == "__main__":
