@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from datetime import datetime
+from time import sleep
 import json
 from pathlib import Path
 
@@ -90,7 +91,9 @@ def clean_file(filename):
 def scraping(check_date, last_check=None, last_update=None):
     chrome = ChromeDriver()
     chrome.go_to_url(URL)
+    sleep(3)
     chrome.click_elements()
+    sleep(3)
 
     write_file(chrome.find_elements(), "raw_data.txt")
     scraped_date = min(clean_file("raw_data.txt"))
@@ -110,6 +113,7 @@ def scraping(check_date, last_check=None, last_update=None):
             json_file["checkedAt"] = check_date
             write_file(json_file, "result.json")
 
+    sleep(3)
     chrome.close()
 
 
